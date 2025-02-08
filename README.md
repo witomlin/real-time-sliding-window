@@ -61,3 +61,25 @@ added. Maintenance occurs at regular intervals to remove data items older than t
 
 A tumbling bucketed view of the data in the window is available on demand. The view's start point within the window,
 length and bucket length are configurable.
+
+## Getting Started
+Add a dependency to your build tool configuration. See [CHANGELOG.md](CHANGELOG.md) for available versions.
+
+### Gradle
+```
+implementation 'io.github.witomlin:real-time-sliding-window:${realTimeSlidingWindowVersion}'
+```
+
+### Gradle (Kotlin DSL)
+```
+implementation("io.github.witomlin:real-time-sliding-window:${realTimeSlidingWindowVersion}")
+```
+
+### Maven
+```xml
+<dependency>
+  <groupId>io.github.witomlin</groupId>
+  <artifactId>real-time-sliding-window</artifactId>
+  <version>${realTimeSlidingWindowVersion}</version>
+</dependency>
+```
