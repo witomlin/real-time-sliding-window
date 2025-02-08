@@ -1,27 +1,14 @@
-import io.github.gradlenexus.publishplugin.NexusPublishExtension
-import java.util.Base64
+import org.jreleaser.model.Active
+import org.jreleaser.model.Http
+
+val gradleProject = project
 
 plugins {
     kotlin("jvm") version "1.9.25"
     id("com.ncorti.ktfmt.gradle") version "0.22.0"
-    id("signing")
+    id("org.jetbrains.dokka") version "2.0.0"
+    id("org.jreleaser") version "1.16.0"
     id("maven-publish")
-    id("io.github.gradle-nexus.publish-plugin") version "2.0.0" apply false
-}
-
-if (project == rootProject) {
-    apply(plugin = "io.github.gradle-nexus.publish-plugin")
-
-    configure<NexusPublishExtension> {
-        repositories {
-            sonatype {
-                nexusUrl.set(uri("https://s01.oss.sonatype.org/service/local/"))
-                snapshotRepositoryUrl.set(uri("https://s01.oss.sonatype.org/content/repositories/snapshots/"))
-                username.set(System.getenv("SONATYPE_USERNAME"))
-                password.set(System.getenv("SONATYPE_PASSWORD"))
-            }
-        }
-    }
 }
 
 apply("versions.gradle.kts")
@@ -31,59 +18,57 @@ group = "io.github.witomlin"
 version = "1.0.0"
 
 java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
     withSourcesJar()
     withJavadocJar()
-
-    toolchain { languageVersion = JavaLanguageVersion.of(21) }
 }
 
 repositories { mavenCentral() }
 
 dependencies {
-    api("org.slf4j:slf4j-api:${project.extra["slf4jVersion"]}")
+    api("org.slf4j:slf4j-api:${gradleProject.extra["slf4jVersion"]}")
 
-    api(platform("io.micrometer:micrometer-bom:${project.extra["micrometerBomVersion"]}"))
+    api(platform("io.micrometer:micrometer-bom:${gradleProject.extra["micrometerBomVersion"]}"))
     api("io.micrometer:micrometer-core")
 
-    testImplementation("io.kotest:kotest-runner-junit5:${project.extra["kotestVersion"]}")
-    testImplementation("io.kotest:kotest-assertions-core:${project.extra["kotestVersion"]}")
-    testImplementation("io.kotest:kotest-extensions-now:${project.extra["kotestVersion"]}")
-    testImplementation("io.mockk:mockk:${project.extra["mockkVersion"]}")
+    testImplementation("io.kotest:kotest-runner-junit5:${gradleProject.extra["kotestVersion"]}")
+    testImplementation("io.kotest:kotest-assertions-core:${gradleProject.extra["kotestVersion"]}")
+    testImplementation("io.kotest:kotest-extensions-now:${gradleProject.extra["kotestVersion"]}")
+    testImplementation("io.mockk:mockk:${gradleProject.extra["mockkVersion"]}")
 }
 
 kotlin { compilerOptions { freeCompilerArgs.addAll("-Xjsr305=strict") } }
-
-tasks.withType<Test>().configureEach {
-    useJUnitPlatform()
-    jvmArgs("--add-opens", "java.base/java.time=ALL-UNNAMED")
-}
 
 ktfmt {
     kotlinLangStyle()
     maxWidth.set(120)
 }
 
-signing {
-    useInMemoryPgpKeys(
-        String(Base64.getDecoder().decode(System.getenv("GPG_SECRET_KEY") ?: "")),
-        System.getenv("GPG_PASSWORD"),
-    )
-    sign(publishing.publications)
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
+    jvmArgs("--add-opens", "java.base/java.time=ALL-UNNAMED")
+}
+
+tasks.named("build") {
+    doLast {
+        val jReleaserDir = file("${layout.buildDirectory.get()}/jreleaser")
+        if (!jReleaserDir.exists()) jReleaserDir.mkdirs()
+
+        val mavenStagingDir = file("${layout.buildDirectory.get()}/maven-staging")
+        if (!mavenStagingDir.exists()) mavenStagingDir.mkdirs()
+    }
 }
 
 publishing {
     publications {
         create<MavenPublication>("maven") {
             // Auto: groupId: project.group, artifactId: project.name, version: project.version
-
-            from(components["kotlin"])
-            artifact(tasks["sourcesJar"])
-            artifact(tasks["javadocJar"])
+            from(components["java"])
 
             pom {
-                name.set(rootProject.name)
-                description.set("${rootProject.name} $version: real-time sliding window implementations for Kotlin")
-                url.set("https://github.com/witomlin/${rootProject.name}")
+                name.set(gradleProject.name)
+                description.set("Real-time sliding window implementations for Kotlin")
+                url.set("https://github.com/witomlin/${gradleProject.name}")
 
                 licenses {
                     license {
@@ -100,11 +85,50 @@ publishing {
                 }
 
                 scm {
-                    connection.set("scm:git:git://github.com/witomlin/${rootProject.name}.git")
-                    developerConnection.set("scm:git:ssh://git@github.com/witomlin/${rootProject.name}.git")
-                    url.set("https://github.com/witomlin/${rootProject.name}")
+                    connection.set("scm:git:git://github.com/witomlin/${gradleProject.name}.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/witomlin/${gradleProject.name}.git")
+                    url.set("https://github.com/witomlin/${gradleProject.name}")
                 }
             }
         }
     }
+
+    repositories { maven { url = layout.buildDirectory.dir("maven-staging").get().asFile.toURI() } }
+}
+
+jreleaser {
+    signing {
+        active.set(Active.ALWAYS)
+        armored.set(true)
+    }
+
+    project {
+        name.set(gradleProject.name)
+        description.set("Real-time sliding window implementations for Kotlin")
+        version.set(gradleProject.version.toString())
+        versionPattern.set("SEMVER")
+        authors.set(listOf("Will Tomlin"))
+        license.set("Apache License Version 2.0")
+        copyright.set("2025 Will Tomlin")
+        links.homepage.set("https://github.com/witomlin/${gradleProject.name}")
+        links.bugTracker.set("https://github.com/witomlin/${gradleProject.name}/issues")
+        links.license.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+    }
+
+    deploy {
+        maven {
+            mavenCentral {
+                create("sonatype") {
+                    active.set(Active.ALWAYS)
+                    url.set("https://central.sonatype.com/api/v1/publisher")
+                    stagingRepositories.set(listOf("${layout.buildDirectory.get()}/maven-staging"))
+                    snapshotSupported.set(false)
+                    applyMavenCentralRules.set(true)
+                    authorization.set(Http.Authorization.BASIC)
+                }
+            }
+        }
+    }
+
+    release { github { enabled.set(false) } }
 }
