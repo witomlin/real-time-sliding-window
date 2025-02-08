@@ -2,7 +2,7 @@ import io.github.gradlenexus.publishplugin.NexusPublishExtension
 import java.util.Base64
 
 plugins {
-	kotlin("jvm") version "1.9.25"
+	kotlin("jvm") version "2.1.10"
 	id("com.ncorti.ktfmt.gradle") version "0.21.0"
 	id("signing")
 	id("maven-publish")
