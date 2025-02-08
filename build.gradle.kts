@@ -129,6 +129,4 @@ jreleaser {
             }
         }
     }
-
-    release { github { enabled.set(false) } }
 }
