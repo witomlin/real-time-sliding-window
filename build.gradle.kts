@@ -3,7 +3,7 @@ import java.util.Base64
 
 plugins {
 	kotlin("jvm") version "1.9.25"
-	id("com.ncorti.ktfmt.gradle") version "0.21.0"
+	id("com.ncorti.ktfmt.gradle") version "0.22.0"
 	id("signing")
 	id("maven-publish")
 	id("io.github.gradle-nexus.publish-plugin") version "2.0.0" apply false
