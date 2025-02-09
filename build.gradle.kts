@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.dsl.*
 import org.jreleaser.model.Active
 import org.jreleaser.model.Http
 
@@ -15,10 +16,10 @@ apply("versions.gradle.kts")
 
 group = "io.github.witomlin"
 
-version = "1.0.0"
+version = "1.1.0"
 
 java {
-    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    toolchain { languageVersion = JavaLanguageVersion.of(11) } // Gradle toolchain
     withSourcesJar()
     withJavadocJar()
 }
@@ -37,7 +38,18 @@ dependencies {
     testImplementation("io.mockk:mockk:${gradleProject.extra["mockkVersion"]}")
 }
 
-kotlin { compilerOptions { freeCompilerArgs.addAll("-Xjsr305=strict") } }
+kotlin {
+    compilerOptions {
+        // Java
+        jvmToolchain(11) // Note: already set via Java toolchain but being verbose
+        jvmTarget.set(JvmTarget.JVM_11) // Note: already set via Java toolchain but being verbose
+
+        // Kotlin
+        apiVersion.set(KotlinVersion.KOTLIN_1_8)
+        languageVersion.set(KotlinVersion.KOTLIN_1_9)
+        freeCompilerArgs.addAll("-Xjsr305=strict")
+    }
+}
 
 ktfmt {
     kotlinLangStyle()

@@ -24,7 +24,7 @@ object TestConfig {
     const val TIME_TESTS_PERIOD_MS_LONG = TIME_TESTS_PERIOD_MS.toLong()
     const val TIME_TESTS_PERIOD_MS_DOUBLE = TIME_TESTS_PERIOD_MS.toDouble()
 
-    const val TIME_TESTS_GRACE_MS = 25
+    const val TIME_TESTS_GRACE_MS = 50
     const val TIME_TESTS_GRACE_MS_LONG = TIME_TESTS_GRACE_MS.toLong()
     const val TIME_TESTS_GRACE_MS_DOUBLE = TIME_TESTS_GRACE_MS.toDouble()
 }

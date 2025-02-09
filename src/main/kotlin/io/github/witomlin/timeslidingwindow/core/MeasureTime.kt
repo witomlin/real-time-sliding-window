@@ -16,9 +16,8 @@
 
 package io.github.witomlin.timeslidingwindow.core
 
-import kotlin.time.DurationUnit
-import kotlin.time.measureTime
-
 internal inline fun measureTimeMsDouble(block: () -> Unit): Double {
-    return measureTime { block() }.toDouble(DurationUnit.MILLISECONDS)
+    val start = System.currentTimeMillis()
+    block()
+    return (System.currentTimeMillis() - start).toDouble()
 }

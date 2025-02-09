@@ -38,7 +38,7 @@ class OnDemandBucketedWindow(private val config: OnDemandBucketedWindowConfig) :
         const val EXCEPTION_MESSAGE_ODB_LENGTH_LESS_THAN_BUCKET = "'length' must be >= 'bucket'"
         const val EXCEPTION_MESSAGE_ODB_LENGTH_MULTIPLE = "'length' must be an exact multiple of 'bucket'"
 
-        fun metricsConfig(config: OnDemandBucketedWindowConfig) =
+        fun metricsConfig() =
             WindowMetricsConfig(
                 listOf(),
                 listOf(Metrics.timer(METRICS_METRIC_ON_DEMAND_TUMBLING_DURATION_NAME, mapOf())),
@@ -55,7 +55,7 @@ class OnDemandBucketedWindow(private val config: OnDemandBucketedWindowConfig) :
             )
         }
 
-    override val metricsConfig: WindowMetricsConfig = metricsConfig(config)
+    override val metricsConfig: WindowMetricsConfig = metricsConfig()
 
     override fun startCore() {
         config.taskScheduler.scheduleEvery(config.maintenanceInterval, ::dataMaintenance)

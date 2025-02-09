@@ -2,7 +2,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Real-time sliding window implementations for Kotlin. Supports adding data defined by one or more arbitrary classes and 
-offers various methods for data retrieval.  
+offers various methods for data retrieval.
 
 ## Features
 - Customizable window settings.
@@ -63,6 +63,10 @@ A tumbling bucketed view of the data in the window is available on demand. The v
 length and bucket length are configurable.
 
 ## Getting Started
+Requires:
+- Kotlin 1.8+
+- Java 11+
+
 Add a dependency to your build tool configuration. See [CHANGELOG.md](CHANGELOG.md) for available versions.
 
 ### Gradle
