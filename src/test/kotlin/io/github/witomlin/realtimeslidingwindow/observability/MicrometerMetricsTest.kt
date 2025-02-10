@@ -20,12 +20,14 @@ import io.github.witomlin.realtimeslidingwindow.WindowMetricsConfig
 import io.github.witomlin.realtimeslidingwindow.test.TestWindowBucketData
 import io.github.witomlin.realtimeslidingwindow.test.TestWindowConfig
 import io.github.witomlin.realtimeslidingwindow.windowimpl.fixedtumbling.FixedTumblingBucketedWindow
+import io.kotest.assertions.throwables.shouldNotThrowExactly
 import io.kotest.assertions.throwables.shouldThrowExactly
 import io.kotest.core.spec.style.BehaviorSpec
-import io.kotest.matchers.maps.shouldContainKeys
 import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.Tag
 import io.micrometer.core.instrument.Timer
+import io.micrometer.core.instrument.search.MeterNotFoundException
+import io.micrometer.core.instrument.search.RequiredSearch
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import java.util.concurrent.TimeUnit
 
@@ -54,38 +56,67 @@ class MicrometerMetricsTest :
 
             given("metrics have not already been initialized") {
                 `when`("invoked") {
-                    then("the correct standard and extra metrics are rendered") {
+                    then("the correct standard and extra metrics are rendered and registered") {
+                        val meterRegistry = SimpleMeterRegistry()
                         val config =
                             TestWindowConfig.fixed(forDataClasses = listOf(TestWindowBucketData::class, String::class))
                         val metricsConfig =
                             WindowMetricsConfig(
                                 listOf("event1", "event2"),
                                 listOf(
-                                    Metrics.gauge("extra.gauge", mapOf()) { 0.0 },
+                                    Metrics.gauge("extra.gauge", mapOf()) { 1.0 },
                                     Metrics.timer("extra.timer", mapOf()),
                                 ),
-                            ) {
-                                1
+                            ) { dataClass ->
+                                if (dataClass == TestWindowBucketData::class) 2 else 3
                             }
 
-                        fun validateMetric(metrics: List<Metrics.Metric>, name: String, expectedSize: Int) {
-                            with(metrics.filter { it.name == name }) {
-                                this.size.shouldBe(expectedSize)
-                                this.forEach { it.tags.shouldContainKeys(Metrics.TAG_WINDOW_NAME_NAME) }
-                            }
+                        MicrometerMetrics(meterRegistry).initialize(config, metricsConfig)
+
+                        meterRegistry.meters.size.shouldBe(8)
+
+                        fun commonTagSearch(name: String): RequiredSearch {
+                            return meterRegistry
+                                .get(name)
+                                .tags(listOf(Tag.of(Metrics.TAG_WINDOW_NAME_NAME, TestWindowConfig.DEFAULT_NAME)))
                         }
 
-                        with(
-                            MicrometerMetrics(SimpleMeterRegistry())
-                                .apply { initialize(config, metricsConfig) }
-                                .renderedMetrics
-                        ) {
-                            validateMetric(this, Metrics.METRIC_CONFIG_LENGTH_NAME, 1)
-                            validateMetric(this, Metrics.METRIC_MAINTENANCE_DURATION_NAME, 1)
-                            validateMetric(this, Metrics.METRIC_OBSERVER_DURATION_NAME, 2)
-                            validateMetric(this, Metrics.METRIC_DATA_ITEMS_NAME, 2)
-                            validateMetric(this, "extra.gauge", 1)
-                            validateMetric(this, "extra.timer", 1)
+                        shouldNotThrowExactly<MeterNotFoundException> {
+                            commonTagSearch(Metrics.METRIC_CONFIG_LENGTH_NAME)
+                                .gauge()
+                                .value()
+                                .shouldBe(TestWindowConfig.DEFAULT_LENGTH.toMillis().toDouble())
+                            commonTagSearch(Metrics.METRIC_MAINTENANCE_DURATION_NAME).timer() // Value tested elsewhere
+
+                            listOf("event1", "event2").forEach { name ->
+                                meterRegistry
+                                    .get(Metrics.METRIC_OBSERVER_DURATION_NAME)
+                                    .tags(
+                                        listOf(
+                                            Tag.of(Metrics.TAG_WINDOW_NAME_NAME, TestWindowConfig.DEFAULT_NAME),
+                                            Tag.of(Metrics.TAG_OBSERVER_DURATION_EVENT_NAME, name),
+                                        )
+                                    )
+                                    .timer() // Value tested elsewhere
+                            }
+
+                            listOf(TestWindowBucketData::class.simpleName!!, String::class.simpleName!!).forEach { name
+                                ->
+                                meterRegistry
+                                    .get(Metrics.METRIC_DATA_ITEMS_NAME)
+                                    .tags(
+                                        listOf(
+                                            Tag.of(Metrics.TAG_WINDOW_NAME_NAME, TestWindowConfig.DEFAULT_NAME),
+                                            Tag.of(Metrics.TAG_DATA_ITEM_COUNT_CLASS_NAME, name),
+                                        )
+                                    )
+                                    .gauge()
+                                    .value()
+                                    .shouldBe(if (name == TestWindowBucketData::class.simpleName) 2.0 else 3.0)
+                            }
+
+                            commonTagSearch("extra.gauge").gauge().value().shouldBe(1.0)
+                            commonTagSearch("extra.timer").timer()
                         }
                     }
                 }
