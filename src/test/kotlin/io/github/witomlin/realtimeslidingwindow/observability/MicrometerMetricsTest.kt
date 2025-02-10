@@ -22,13 +22,12 @@ import io.github.witomlin.realtimeslidingwindow.test.TestWindowConfig
 import io.github.witomlin.realtimeslidingwindow.windowimpl.fixedtumbling.FixedTumblingBucketedWindow
 import io.kotest.assertions.throwables.shouldThrowExactly
 import io.kotest.core.spec.style.BehaviorSpec
+import io.kotest.matchers.maps.shouldContainKeys
 import io.kotest.matchers.shouldBe
-import io.micrometer.core.instrument.DistributionSummary
 import io.micrometer.core.instrument.Tag
 import io.micrometer.core.instrument.Timer
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import java.util.concurrent.TimeUnit
-import kotlin.reflect.KClass
 
 class MicrometerMetricsTest :
     BehaviorSpec({
@@ -40,14 +39,53 @@ class MicrometerMetricsTest :
 
                         with(
                             MicrometerMetrics(SimpleMeterRegistry()).apply {
-                                initialize(config, FixedTumblingBucketedWindow.metricsConfig(config))
+                                initialize(config, FixedTumblingBucketedWindow.metricsConfig(config) { 0 })
                             }
                         ) {
                             shouldThrowExactly<IllegalStateException> {
-                                    initialize(config, FixedTumblingBucketedWindow.metricsConfig(config))
+                                    initialize(config, FixedTumblingBucketedWindow.metricsConfig(config) { 0 })
                                 }
                                 .message
                                 .shouldBe(Metrics.EXCEPTION_MESSAGE_ALREADY_INITIALIZED)
+                        }
+                    }
+                }
+            }
+
+            given("metrics have not already been initialized") {
+                `when`("invoked") {
+                    then("the correct standard and extra metrics are rendered") {
+                        val config =
+                            TestWindowConfig.fixed(forDataClasses = listOf(TestWindowBucketData::class, String::class))
+                        val metricsConfig =
+                            WindowMetricsConfig(
+                                listOf("event1", "event2"),
+                                listOf(
+                                    Metrics.gauge("extra.gauge", mapOf()) { 0.0 },
+                                    Metrics.timer("extra.timer", mapOf()),
+                                ),
+                            ) {
+                                1
+                            }
+
+                        fun validateMetric(metrics: List<Metrics.Metric>, name: String, expectedSize: Int) {
+                            with(metrics.filter { it.name == name }) {
+                                this.size.shouldBe(expectedSize)
+                                this.forEach { it.tags.shouldContainKeys(Metrics.TAG_WINDOW_NAME_NAME) }
+                            }
+                        }
+
+                        with(
+                            MicrometerMetrics(SimpleMeterRegistry())
+                                .apply { initialize(config, metricsConfig) }
+                                .renderedMetrics
+                        ) {
+                            validateMetric(this, Metrics.METRIC_CONFIG_LENGTH_NAME, 1)
+                            validateMetric(this, Metrics.METRIC_MAINTENANCE_DURATION_NAME, 1)
+                            validateMetric(this, Metrics.METRIC_OBSERVER_DURATION_NAME, 2)
+                            validateMetric(this, Metrics.METRIC_DATA_ITEMS_NAME, 2)
+                            validateMetric(this, "extra.gauge", 1)
+                            validateMetric(this, "extra.timer", 1)
                         }
                     }
                 }
@@ -75,7 +113,7 @@ class MicrometerMetricsTest :
 
                         with(
                             MicrometerMetrics(meterRegistry).apply {
-                                initialize(config, FixedTumblingBucketedWindow.metricsConfig(config))
+                                initialize(config, FixedTumblingBucketedWindow.metricsConfig(config) { 0 })
                             }
                         ) {
                             this.updateMaintenanceDuration(50.0)
@@ -115,7 +153,7 @@ class MicrometerMetricsTest :
                     then("an exception is thrown") {
                         with(
                             MicrometerMetrics(SimpleMeterRegistry()).apply {
-                                initialize(TestWindowConfig.fixed(), WindowMetricsConfig())
+                                initialize(TestWindowConfig.fixed(), WindowMetricsConfig { 0 })
                             }
                         ) {
                             shouldThrowExactly<IllegalArgumentException> {
@@ -139,7 +177,7 @@ class MicrometerMetricsTest :
 
                         with(
                             MicrometerMetrics(meterRegistry).apply {
-                                initialize(config, FixedTumblingBucketedWindow.metricsConfig(config))
+                                initialize(config, FixedTumblingBucketedWindow.metricsConfig(config) { 0 })
                             }
                         ) {
                             this.updateObserverDuration(FixedTumblingBucketedWindow.METRICS_OBSERVER_STARTED_NAME, 10.0)
@@ -175,69 +213,6 @@ class MicrometerMetricsTest :
                         observerDurationTimer(FixedTumblingBucketedWindow.METRICS_OBSERVER_REMOVING_NAME)
                             .totalTime(TimeUnit.MILLISECONDS)
                             .shouldBe(40.0)
-                    }
-                }
-            }
-        }
-
-        context("updateDataItemCount") {
-            given("metrics have not been initialized") {
-                `when`("invoked") {
-                    then("an exception is thrown") {
-                        with(MicrometerMetrics(SimpleMeterRegistry())) {
-                            shouldThrowExactly<IllegalStateException> { this.updateDataItemCount(String::class, 0) }
-                                .message
-                                .shouldBe(Metrics.EXCEPTION_MESSAGE_NOT_INITIALIZED)
-                        }
-                    }
-                }
-            }
-
-            given("metrics have been initialized") {
-                `when`("invoked for an invalid data class") {
-                    then("an exception is thrown") {
-                        val config = TestWindowConfig.fixed(forDataClasses = listOf(TestWindowBucketData::class))
-
-                        with(
-                            MicrometerMetrics(SimpleMeterRegistry()).apply {
-                                initialize(config, FixedTumblingBucketedWindow.metricsConfig(config))
-                            }
-                        ) {
-                            shouldThrowExactly<IllegalArgumentException> { this.updateDataItemCount(String::class, 0) }
-                                .message
-                                .shouldBe(Metrics.EXCEPTION_MESSAGE_CLASS_NOT_STORED)
-                        }
-                    }
-                }
-                `when`("the counts for 2 data items are updated") {
-                    then("the meter registry correctly reflects the counts") {
-                        val config =
-                            TestWindowConfig.fixed(forDataClasses = listOf(TestWindowBucketData::class, String::class))
-                        val meterRegistry = SimpleMeterRegistry()
-
-                        with(
-                            MicrometerMetrics(meterRegistry).apply {
-                                initialize(config, FixedTumblingBucketedWindow.metricsConfig(config))
-                            }
-                        ) {
-                            this.updateDataItemCount(TestWindowBucketData::class, 70)
-                            this.updateDataItemCount(String::class, 80)
-                        }
-
-                        fun dataItemCountSummary(kClass: KClass<*>): DistributionSummary {
-                            return meterRegistry
-                                .get(Metrics.METRIC_DATA_ITEM_COUNT_NAME)
-                                .tags(
-                                    listOf(
-                                        Tag.of(Metrics.TAG_WINDOW_NAME_NAME, TestWindowConfig.DEFAULT_NAME),
-                                        Tag.of(Metrics.TAG_DATA_ITEM_COUNT_CLASS_NAME, kClass.simpleName!!),
-                                    )
-                                )
-                                .summary()
-                        }
-
-                        dataItemCountSummary(TestWindowBucketData::class).totalAmount().shouldBe(70.0)
-                        dataItemCountSummary(String::class).totalAmount().shouldBe(80.0)
                     }
                 }
             }

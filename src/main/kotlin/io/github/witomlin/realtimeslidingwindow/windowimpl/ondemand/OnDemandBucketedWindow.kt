@@ -24,11 +24,12 @@ import io.github.witomlin.realtimeslidingwindow.observability.prefixForWindowLog
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.ConcurrentSkipListSet
+import kotlin.reflect.KClass
 
 class OnDemandBucketedWindow(private val config: OnDemandBucketedWindowConfig) :
     BucketedWindow<OnDemandBucketedWindowBucket, OnDemandBucketedWindow.Event>(config) {
     internal companion object {
-        const val METRICS_METRIC_ON_DEMAND_TUMBLING_DURATION_NAME = "window_on_demand_tumbling_buckets_duration_ms"
+        const val METRICS_METRIC_VIEW_TUMBLING_DURATION_NAME = "window.view.tumbling.duration"
 
         const val EXCEPTION_MESSAGE_ODB_LENGTH_INSUFFICIENT = "'length' must be > 0ms"
         const val EXCEPTION_MESSAGE_ODB_BUCKET_INSUFFICIENT = "'bucket' must be > 0ms"
@@ -38,10 +39,11 @@ class OnDemandBucketedWindow(private val config: OnDemandBucketedWindowConfig) :
         const val EXCEPTION_MESSAGE_ODB_LENGTH_LESS_THAN_BUCKET = "'length' must be >= 'bucket'"
         const val EXCEPTION_MESSAGE_ODB_LENGTH_MULTIPLE = "'length' must be an exact multiple of 'bucket'"
 
-        fun metricsConfig() =
+        fun metricsConfig(dataItemCount: (dataClass: KClass<*>) -> Int) =
             WindowMetricsConfig(
                 listOf(),
-                listOf(Metrics.timer(METRICS_METRIC_ON_DEMAND_TUMBLING_DURATION_NAME, mapOf())),
+                listOf(Metrics.timer(METRICS_METRIC_VIEW_TUMBLING_DURATION_NAME, mapOf())),
+                dataItemCount,
             )
     }
 
@@ -55,7 +57,7 @@ class OnDemandBucketedWindow(private val config: OnDemandBucketedWindowConfig) :
             )
         }
 
-    override val metricsConfig: WindowMetricsConfig = metricsConfig()
+    override val metricsConfig: WindowMetricsConfig = metricsConfig { dataClass -> dataItemCounts[dataClass]!! }
 
     override fun startCore() {
         config.taskScheduler.scheduleEvery(config.maintenanceInterval, ::dataMaintenance)
@@ -115,7 +117,7 @@ class OnDemandBucketedWindow(private val config: OnDemandBucketedWindowConfig) :
         }
 
         config.metrics.updateTimer(
-            config.metrics.renderedMetrics.first { it.name == METRICS_METRIC_ON_DEMAND_TUMBLING_DURATION_NAME },
+            config.metrics.renderedMetrics.first { it.name == METRICS_METRIC_VIEW_TUMBLING_DURATION_NAME },
             (System.currentTimeMillis() - startMillis).toDouble(),
         )
         return buckets
@@ -149,9 +151,7 @@ class OnDemandBucketedWindow(private val config: OnDemandBucketedWindowConfig) :
             removedEntries.entries.joinToString(", ") { (clazz, count) -> "${clazz.simpleName}=$count" }
         logger.debug("expired entries removed: $removedEntriesMessage".prefixForWindowLog(config))
 
-        config.forDataClasses.forEach { dataClass ->
-            config.metrics.updateDataItemCount(dataClass, data[dataClass]!!.size)
-        }
+        config.forDataClasses.forEach { dataClass -> dataItemCounts[dataClass] = data[dataClass]!!.size }
 
         config.metrics.updateMaintenanceDuration((System.currentTimeMillis() - startMillis).toDouble())
     }

@@ -118,9 +118,9 @@ No events are emitted by this window.
 ## Metrics
 The following window metrics are available when [metrics are enabled](#configuration):
 
-| Name                                            | Type                | Tags                   | Description                                                                         |
-|:------------------------------------------------|:--------------------|:-----------------------|:------------------------------------------------------------------------------------|
-| `window_config_length_ms`                       | Gauge               | `window_name`          | The configured window length.                                                       |
-| `window_on_demand_tumbling_buckets_duration_ms` | Timer               | `window_name`          | The duration of the `onDemandTumblingBuckets` method.                               |
-| `window_maintenance_duration_ms`                | Timer               | `window_name`          | The duration when processing the end of the current bucket.                         |
-| `window_data_item_count`                        | DistributionSummary | `window_name`, `class` | The number of data items in the entire window (all non-current buckets), per class. |
+| Name                            | Type  | Tags                   | Description                                                                                                         |
+|:--------------------------------|:------|:-----------------------|:--------------------------------------------------------------------------------------------------------------------|
+| `window.config.length_ms`       | Gauge | `window_name`          | The configured window length.                                                                                       |
+| `window.data.items`             | Gauge | `window_name`, `class` | The number of data items in the entire window (excluding expired data), per class. Updated upon window maintenance. |
+| `window.view.tumbling.duration` | Timer | `window_name`          | The duration of the `onDemandTumblingBuckets` method.                                                               |
+| `window.maintenance.duration`   | Timer | `window_name`          | The duration of window maintenance.                                                                                 |

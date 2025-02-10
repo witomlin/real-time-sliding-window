@@ -20,21 +20,40 @@ import io.github.witomlin.realtimeslidingwindow.BucketData
 import io.github.witomlin.realtimeslidingwindow.BucketedWindow
 import io.github.witomlin.realtimeslidingwindow.WindowName
 import io.github.witomlin.realtimeslidingwindow.observability.Metrics
+import io.github.witomlin.realtimeslidingwindow.observability.MicrometerMetrics
 import io.github.witomlin.realtimeslidingwindow.test.*
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrowExactly
 import io.kotest.core.spec.style.BehaviorSpec
 import io.kotest.extensions.time.withConstantNow
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
 import kotlin.reflect.KClass
 
 class OnDemandBucketedWindowTest :
     BehaviorSpec({
         beforeTest { WindowName.unregister(TestWindowConfig.DEFAULT_NAME) }
+
+        context("init") {
+            given("the class has been initialized") {
+                `when`("the metrics registry is inspected") {
+                    then("window-specific metrics are correctly registered") {
+                        val meterRegistry = SimpleMeterRegistry()
+                        OnDemandBucketedWindow(TestWindowConfig.onDemand(metrics = MicrometerMetrics(meterRegistry)))
+
+                        meterRegistry
+                            .find(OnDemandBucketedWindow.METRICS_METRIC_VIEW_TUMBLING_DURATION_NAME)
+                            .shouldNotBeNull()
+                    }
+                }
+            }
+        }
 
         context("startCore") {
             val scheduler = TestRunOnlyNTimesTaskScheduler(everyTimes = 1, everyRunAsync = false)
@@ -185,8 +204,7 @@ class OnDemandBucketedWindowTest :
                             TestCallbackMetrics(
                                 onUpdateTimer = { metric, _ ->
                                     if (
-                                        metric.name ==
-                                            OnDemandBucketedWindow.METRICS_METRIC_ON_DEMAND_TUMBLING_DURATION_NAME
+                                        metric.name == OnDemandBucketedWindow.METRICS_METRIC_VIEW_TUMBLING_DURATION_NAME
                                     )
                                         isMetricsDurationOk = true
                                 }
@@ -413,31 +431,13 @@ class OnDemandBucketedWindowTest :
                     then("data earlier than the start of the window is removed") {
                         val configLength = Duration.ofSeconds(3)
 
-                        var isMetricsCount1Ok = false
-                        var isMetricsCount2Ok = false
                         var isMetricsMaintenanceOk = false
                         val metrics =
                             TestCallbackMetrics(
                                 onUpdateTimer = { metric, _ ->
                                     if (metric.name == Metrics.METRIC_MAINTENANCE_DURATION_NAME)
                                         isMetricsMaintenanceOk = true
-                                },
-                                onUpdateDistributionSummary = { metric, value ->
-                                    if (
-                                        metric.name == Metrics.METRIC_DATA_ITEM_COUNT_NAME &&
-                                            metric.tags[Metrics.TAG_DATA_ITEM_COUNT_CLASS_NAME] ==
-                                                TestWindowBucketData::class.simpleName &&
-                                            value == 3.0
-                                    )
-                                        isMetricsCount1Ok = true
-                                    if (
-                                        metric.name == Metrics.METRIC_DATA_ITEM_COUNT_NAME &&
-                                            metric.tags[Metrics.TAG_DATA_ITEM_COUNT_CLASS_NAME] ==
-                                                TestWindowBucketData::class.simpleName &&
-                                            value == 3.0
-                                    )
-                                        isMetricsCount2Ok = true
-                                },
+                                }
                             )
                         val window =
                             OnDemandBucketedWindow(
@@ -487,8 +487,17 @@ class OnDemandBucketedWindowTest :
                             this.forEach { it.timestamp.shouldBeBetweenInclusive(now.minus(configLength), now) }
                         }
 
-                        isMetricsCount1Ok.shouldBeTrue()
-                        isMetricsCount2Ok.shouldBeTrue()
+                        with(
+                            TestReflection.getFieldValue<ConcurrentHashMap<KClass<*>, Int>>(
+                                window,
+                                BucketedWindow::class,
+                                "dataItemCounts",
+                            )
+                        ) {
+                            this[TestWindowBucketData::class].shouldBe(3)
+                            this[String::class].shouldBe(3)
+                        }
+
                         isMetricsMaintenanceOk.shouldBeTrue()
                     }
                 }

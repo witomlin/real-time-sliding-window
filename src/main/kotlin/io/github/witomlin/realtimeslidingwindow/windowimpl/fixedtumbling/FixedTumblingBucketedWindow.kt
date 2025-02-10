@@ -26,6 +26,7 @@ import io.github.witomlin.realtimeslidingwindow.observability.prefixForWindowLog
 import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.concurrent.withLock
+import kotlin.reflect.KClass
 
 class FixedTumblingBucketedWindow(private val config: FixedTumblingBucketedWindowConfig) :
     BucketedWindow<FixedTumblingBucketedWindowBucket, FixedTumblingBucketedWindow.Event>(config) {
@@ -35,12 +36,12 @@ class FixedTumblingBucketedWindow(private val config: FixedTumblingBucketedWindo
         const val METRICS_OBSERVER_UPDATED_NAME = "non_current_buckets_updated"
         const val METRICS_OBSERVER_REMOVING_NAME = "non_current_bucket_removing"
 
-        const val METRICS_METRIC_CONFIG_BUCKET_LENGTH_NAME = "window_config_bucket_length_ms"
-        const val METRICS_METRIC_ACTUAL_BUCKET_DURATION_NAME = "window_actual_bucket_duration_ms"
+        const val METRICS_METRIC_CONFIG_BUCKET_LENGTH_NAME = "window.config.bucket.length_ms"
+        const val METRICS_METRIC_BUCKET_DURATION_NAME = "window.bucket.duration"
 
         const val EXCEPTION_MESSAGE_ENDED_BUCKET_NOT_MARKED_CURRENT = "Ended bucket is not marked as current"
 
-        fun metricsConfig(config: FixedTumblingBucketedWindowConfig) =
+        fun metricsConfig(config: FixedTumblingBucketedWindowConfig, dataItemCount: (dataClass: KClass<*>) -> Int) =
             WindowMetricsConfig(
                 listOf(
                     METRICS_OBSERVER_STARTED_NAME,
@@ -52,8 +53,9 @@ class FixedTumblingBucketedWindow(private val config: FixedTumblingBucketedWindo
                     Metrics.gauge(METRICS_METRIC_CONFIG_BUCKET_LENGTH_NAME, mapOf()) {
                         config.bucketLength.toMillis().toDouble()
                     },
-                    Metrics.timer(METRICS_METRIC_ACTUAL_BUCKET_DURATION_NAME, mapOf()),
+                    Metrics.timer(METRICS_METRIC_BUCKET_DURATION_NAME, mapOf()),
                 ),
+                dataItemCount,
             )
     }
 
@@ -73,7 +75,7 @@ class FixedTumblingBucketedWindow(private val config: FixedTumblingBucketedWindo
     private val currentBucketLock = WrappedReentrantReadWriteLock()
     @Volatile private lateinit var _currentBucket: FixedTumblingBucketedWindowBucket
 
-    override val metricsConfig: WindowMetricsConfig = metricsConfig(config)
+    override val metricsConfig: WindowMetricsConfig = metricsConfig(config) { dataClass -> dataItemCounts[dataClass]!! }
 
     val buckets: List<FixedTumblingBucketedWindowBucket>
         get() {
@@ -132,7 +134,7 @@ class FixedTumblingBucketedWindow(private val config: FixedTumblingBucketedWindo
         )
 
         config.metrics.updateTimer(
-            config.metrics.renderedMetrics.first { it.name == METRICS_METRIC_ACTUAL_BUCKET_DURATION_NAME },
+            config.metrics.renderedMetrics.first { it.name == METRICS_METRIC_BUCKET_DURATION_NAME },
             bucket.endInfo!!.durationMillis.toDouble(),
         )
         if (bucket.endInfo!!.durationMillis > config.bucketLength.toMillis() * 1.1)
@@ -145,9 +147,7 @@ class FixedTumblingBucketedWindow(private val config: FixedTumblingBucketedWindo
             )
 
         config.forDataClasses.forEach { dataClass ->
-            var entryCount = 0
-            nonCurrentBucketsSnapshot.forEach { entryCount += it.dataForClass(dataClass).size }
-            config.metrics.updateDataItemCount(dataClass, entryCount)
+            dataItemCounts[dataClass] = nonCurrentBucketsSnapshot.sumOf { it.dataForClass(dataClass).size }
         }
 
         config.metrics.updateMaintenanceDuration((System.currentTimeMillis() - startMillis).toDouble())

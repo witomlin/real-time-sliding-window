@@ -17,8 +17,10 @@
 package io.github.witomlin.realtimeslidingwindow
 
 import io.github.witomlin.realtimeslidingwindow.observability.Metrics
+import kotlin.reflect.KClass
 
 data class WindowMetricsConfig(
     val observerEventNames: List<String> = listOf(),
     val extraMetrics: List<Metrics.Metric> = listOf(),
+    val dataItemCount: (dataClass: KClass<*>) -> Int,
 )

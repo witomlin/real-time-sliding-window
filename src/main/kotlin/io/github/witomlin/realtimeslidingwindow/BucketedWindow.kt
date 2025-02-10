@@ -17,6 +17,8 @@
 package io.github.witomlin.realtimeslidingwindow
 
 import io.github.witomlin.realtimeslidingwindow.core.GenericSubject
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.reflect.KClass
 
 abstract class BucketedWindow<B : Bucket, E : GenericSubject.Event>(private val config: BucketedWindowConfig) :
     GenericSubject<E, List<B>>(config.taskScheduler) {
@@ -27,6 +29,8 @@ abstract class BucketedWindow<B : Bucket, E : GenericSubject.Event>(private val 
     }
 
     internal abstract val metricsConfig: WindowMetricsConfig
+    protected val dataItemCounts =
+        ConcurrentHashMap<KClass<*>, Int>().apply { config.forDataClasses.forEach { this[it] = 0 } }
     @Volatile protected var hasStarted = false
 
     init {

@@ -20,6 +20,4 @@ class NoOpMetrics : Metrics() {
     override fun initializeCore() {}
 
     override fun updateTimer(metric: Metric, durationMs: Double) {}
-
-    override fun updateDistributionSummary(metric: Metric, value: Double) {}
 }

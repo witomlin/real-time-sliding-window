@@ -37,7 +37,9 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.*
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
+import kotlin.reflect.KClass
 import org.slf4j.Logger
 
 class FixedTumblingBucketedWindowTest :
@@ -68,7 +70,7 @@ class FixedTumblingBucketedWindowTest :
                             .find(FixedTumblingBucketedWindow.METRICS_METRIC_CONFIG_BUCKET_LENGTH_NAME)
                             .shouldNotBeNull()
                         meterRegistry
-                            .find(FixedTumblingBucketedWindow.METRICS_METRIC_ACTUAL_BUCKET_DURATION_NAME)
+                            .find(FixedTumblingBucketedWindow.METRICS_METRIC_BUCKET_DURATION_NAME)
                             .shouldNotBeNull()
                     }
                 }
@@ -305,8 +307,6 @@ class FixedTumblingBucketedWindowTest :
                         var isMetricsObsStartedOk = false
                         var isMetricsObsUpdatedOk = false
                         var isMetricsBucketOk = false
-                        var isMetricsCount1Ok = false
-                        var isMetricsCount2Ok = false
                         var isMetricsMaintenanceOk = false
                         val metrics =
                             TestCallbackMetrics(
@@ -329,30 +329,11 @@ class FixedTumblingBucketedWindowTest :
                                                 FixedTumblingBucketedWindow.METRICS_OBSERVER_UPDATED_NAME
                                     )
                                         isMetricsObsUpdatedOk = true
-                                    if (
-                                        metric.name ==
-                                            FixedTumblingBucketedWindow.METRICS_METRIC_ACTUAL_BUCKET_DURATION_NAME
-                                    )
+                                    if (metric.name == FixedTumblingBucketedWindow.METRICS_METRIC_BUCKET_DURATION_NAME)
                                         isMetricsBucketOk = true
                                     if (metric.name == Metrics.METRIC_MAINTENANCE_DURATION_NAME)
                                         isMetricsMaintenanceOk = true
-                                },
-                                onUpdateDistributionSummary = { metric, value ->
-                                    if (
-                                        metric.name == Metrics.METRIC_DATA_ITEM_COUNT_NAME &&
-                                            metric.tags[Metrics.TAG_DATA_ITEM_COUNT_CLASS_NAME] ==
-                                                TestWindowBucketData::class.simpleName &&
-                                            value == 2.0
-                                    )
-                                        isMetricsCount1Ok = true
-                                    if (
-                                        metric.name == Metrics.METRIC_DATA_ITEM_COUNT_NAME &&
-                                            metric.tags[Metrics.TAG_DATA_ITEM_COUNT_CLASS_NAME] ==
-                                                String::class.simpleName &&
-                                            value == 1.0
-                                    )
-                                        isMetricsCount2Ok = true
-                                },
+                                }
                             )
 
                         val dataPopulated = CountDownLatch(1)
@@ -382,8 +363,7 @@ class FixedTumblingBucketedWindowTest :
                                 if (event == FixedTumblingBucketedWindow.Event.NonCurrentBucketsUpdated)
                                     isObsUpdatedOk = true
                             }
-
-                        with(
+                        val window =
                             FixedTumblingBucketedWindow(
                                     TestWindowConfig.fixed(
                                         forDataClasses = listOf(TestWindowBucketData::class, String::class),
@@ -395,7 +375,8 @@ class FixedTumblingBucketedWindowTest :
                                     addObserver(observer)
                                     start()
                                 }
-                        ) {
+
+                        with(window) {
                             this.addData(TestWindowBucketData())
                             this.addData(TestWindowBucketData())
                             this.addData("test")
@@ -440,8 +421,18 @@ class FixedTumblingBucketedWindowTest :
                             isObsUpdatedOk.shouldBeTrue()
                             isMetricsObsUpdatedOk.shouldBeTrue()
                             isMetricsBucketOk.shouldBeTrue()
-                            isMetricsCount1Ok.shouldBeTrue()
-                            isMetricsCount2Ok.shouldBeTrue()
+
+                            with(
+                                TestReflection.getFieldValue<ConcurrentHashMap<KClass<*>, Int>>(
+                                    window,
+                                    BucketedWindow::class,
+                                    "dataItemCounts",
+                                )
+                            ) {
+                                this[TestWindowBucketData::class].shouldBe(2)
+                                this[String::class].shouldBe(1)
+                            }
+
                             isMetricsMaintenanceOk.shouldBeTrue()
                         }
                     }

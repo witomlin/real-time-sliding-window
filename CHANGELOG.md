@@ -2,6 +2,12 @@
 - Based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.3.0
+10 February 2025
+
+### Changed
+- Align Micrometer metric names to convention.
+
 ## 1.2.0
 10 February 2025
 

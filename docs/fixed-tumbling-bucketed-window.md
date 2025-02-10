@@ -196,14 +196,14 @@ was calculated using individual non-current buckets. The received bucket is immu
 ## Metrics
 The following window metrics are available when [metrics are enabled](#configuration):
 
-| Name                               | Type                | Tags                   | Description                                                                         |
-|:-----------------------------------|:--------------------|:-----------------------|:------------------------------------------------------------------------------------|
-| `window_config_length_ms`          | Gauge               | `window_name`          | The configured window length.                                                       |
-| `window_config_bucket_length_ms`   | Gauge               | `window_name`          | The configured window bucket length.                                                |
-| `window_actual_bucket_duration_ms` | Timer               | `window_name`          | The actual current bucket duration. Updated upon current bucket end.                |
-| `window_observer_duration_ms`      | Timer               | `window_name`, `event` | The cumulative duration of all observers, per event.                                |
-| `window_maintenance_duration_ms`   | Timer               | `window_name`          | The duration when processing the end of the current bucket.                         |
-| `window_data_item_count`           | DistributionSummary | `window_name`, `class` | The number of data items in the entire window (all non-current buckets), per class. |
+| Name                             | Type  | Tags                   | Description                                                                                                          |
+|:---------------------------------|:------|:-----------------------|:---------------------------------------------------------------------------------------------------------------------|
+| `window.config.length_ms`        | Gauge | `window_name`          | The configured window length.                                                                                        |
+| `window.config.bucket.length_ms` | Gauge | `window_name`          | The configured window bucket length.                                                                                 |
+| `window.data.items`              | Gauge | `window_name`, `class` | The number of data items in the entire window (all non-current buckets), per class. Updated upon current bucket end. |
+| `window.bucket.duration`         | Timer | `window_name`          | The actual current bucket duration. Updated upon current bucket end.                                                 |
+| `window.observer.duration`       | Timer | `window_name`, `event` | The cumulative duration of all observers, per event.                                                                 |
+| `window.maintenance.duration`    | Timer | `window_name`          | The duration when processing the end of the current bucket.                                                          |
 
 ## Limitations
 > [!IMPORTANT]  
@@ -221,8 +221,8 @@ The following conditions may affect the accuracy of the window:
 - Garbage collection.
 
 Use the [metrics](#metrics) provided by the window to monitor the window's accuracy, in particular:
-- `window_actual_bucket_duration_ms`
-- `window_observer_duration_ms`
-- `window_maintenance_duration_ms`
+- `window.bucket.duration`
+- `window.observer.duration`
+- `window.maintenance.duration`
 
 When a current bucket ends, a `WARN` will be logged if its actual duration is more than 110% of its intended duration.

@@ -21,7 +21,6 @@ import io.github.witomlin.realtimeslidingwindow.observability.Metrics
 class TestCallbackMetrics(
     private val onInitializeCore: () -> Unit = {},
     private val onUpdateTimer: (metric: Metric, durationMs: Double) -> Unit = { _, _ -> },
-    private val onUpdateDistributionSummary: (metric: Metric, value: Double) -> Unit = { _, _ -> },
 ) : Metrics() {
     override fun initializeCore() {
         onInitializeCore()
@@ -29,9 +28,5 @@ class TestCallbackMetrics(
 
     override fun updateTimer(metric: Metric, durationMs: Double) {
         onUpdateTimer(metric, durationMs)
-    }
-
-    override fun updateDistributionSummary(metric: Metric, value: Double) {
-        onUpdateDistributionSummary(metric, value)
     }
 }

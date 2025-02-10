@@ -49,8 +49,4 @@ class MicrometerMetrics(private val meterRegistry: MeterRegistry) : Metrics() {
             .timer(metric.name, metric.tags.map { MicrometerTag.of(it.key, it.value) })
             .record(durationMs.toLong(), TimeUnit.MILLISECONDS)
     }
-
-    override fun updateDistributionSummary(metric: Metric, value: Double) {
-        meterRegistry.summary(metric.name, metric.tags.map { MicrometerTag.of(it.key, it.value) }).record(value)
-    }
 }

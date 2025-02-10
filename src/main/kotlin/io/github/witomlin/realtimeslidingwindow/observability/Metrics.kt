@@ -18,14 +18,13 @@ package io.github.witomlin.realtimeslidingwindow.observability
 
 import io.github.witomlin.realtimeslidingwindow.BucketedWindowConfig
 import io.github.witomlin.realtimeslidingwindow.WindowMetricsConfig
-import kotlin.reflect.KClass
 
 abstract class Metrics {
     companion object {
-        internal const val METRIC_CONFIG_LENGTH_NAME = "window_config_length_ms"
-        internal const val METRIC_MAINTENANCE_DURATION_NAME = "window_maintenance_duration_ms"
-        internal const val METRIC_OBSERVER_DURATION_NAME = "window_observer_duration_ms"
-        internal const val METRIC_DATA_ITEM_COUNT_NAME = "window_data_item_count"
+        internal const val METRIC_CONFIG_LENGTH_NAME = "window.config.length_ms"
+        internal const val METRIC_MAINTENANCE_DURATION_NAME = "window.maintenance.duration"
+        internal const val METRIC_OBSERVER_DURATION_NAME = "window.observer.duration"
+        internal const val METRIC_DATA_ITEMS_NAME = "window.data.items"
 
         internal const val TAG_WINDOW_NAME_NAME = "window_name"
         internal const val TAG_OBSERVER_DURATION_EVENT_NAME = "event"
@@ -34,7 +33,6 @@ abstract class Metrics {
         internal const val EXCEPTION_MESSAGE_ALREADY_INITIALIZED = "Already initialized"
         internal const val EXCEPTION_MESSAGE_NOT_INITIALIZED = "Not initialized"
         internal const val EXCEPTION_MESSAGE_UNKNOWN_OBSERVER_EVENT = "Unknown observer event"
-        internal const val EXCEPTION_MESSAGE_CLASS_NOT_STORED = "Class not stored in window"
 
         fun gauge(name: String, tags: Map<String, String>, valueProvider: (_: Any) -> Double): Metric {
             return ValueProvidingMetric(MetricType.Gauge, name, tags.toMutableMap(), valueProvider)
@@ -42,10 +40,6 @@ abstract class Metrics {
 
         fun timer(name: String, tags: Map<String, String>): Metric {
             return Metric(MetricType.Timer, name, tags.toMutableMap())
-        }
-
-        fun distributionSummary(name: String, tags: Map<String, String>): Metric {
-            return Metric(MetricType.DistributionSummary, name, tags.toMutableMap())
         }
     }
 
@@ -109,21 +103,7 @@ abstract class Metrics {
         updateTimer(metric, durationMs)
     }
 
-    fun updateDataItemCount(dataClass: KClass<*>, count: Int) {
-        check(hasInitialized) { EXCEPTION_MESSAGE_NOT_INITIALIZED }
-        require(windowConfig.forDataClasses.contains(dataClass)) { EXCEPTION_MESSAGE_CLASS_NOT_STORED }
-
-        val metric =
-            _renderedMetrics.first {
-                it.name == METRIC_DATA_ITEM_COUNT_NAME &&
-                    it.tags[TAG_DATA_ITEM_COUNT_CLASS_NAME] == dataClass.simpleName
-            }
-        updateDistributionSummary(metric, count.toDouble())
-    }
-
     abstract fun updateTimer(metric: Metric, durationMs: Double)
-
-    abstract fun updateDistributionSummary(metric: Metric, value: Double)
 
     private fun renderMetrics(): List<Metric> {
         val commonTags = mapOf(TAG_WINDOW_NAME_NAME to windowConfig.name)
@@ -133,13 +113,12 @@ abstract class Metrics {
                 .map { timer(METRIC_OBSERVER_DURATION_NAME, mapOf(TAG_OBSERVER_DURATION_EVENT_NAME to it)) }
                 .onEach { it.tags.putAll(commonTags) }
 
-        val dataItemCountDistributions =
+        val dataItemCountGauges =
             windowConfig.forDataClasses
-                .map {
-                    distributionSummary(
-                        METRIC_DATA_ITEM_COUNT_NAME,
-                        mapOf(TAG_DATA_ITEM_COUNT_CLASS_NAME to it.simpleName!!),
-                    )
+                .map { dataClass ->
+                    gauge(METRIC_DATA_ITEMS_NAME, mapOf(TAG_DATA_ITEM_COUNT_CLASS_NAME to dataClass.simpleName!!)) {
+                        metricsConfig.dataItemCount(dataClass).toDouble()
+                    }
                 }
                 .onEach { it.tags.putAll(commonTags) }
 
@@ -148,7 +127,7 @@ abstract class Metrics {
                     listOf(gauge(METRIC_CONFIG_LENGTH_NAME, commonTags) { windowConfig.length.toMillis().toDouble() }),
                     listOf(timer(METRIC_MAINTENANCE_DURATION_NAME, commonTags)),
                     observerTimers,
-                    dataItemCountDistributions,
+                    dataItemCountGauges,
                 )
                 .flatten()
 
