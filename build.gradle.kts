@@ -16,7 +16,7 @@ apply("versions.gradle.kts")
 
 group = "io.github.witomlin"
 
-version = "1.1.0"
+version = "1.2.0"
 
 java {
     toolchain { languageVersion = JavaLanguageVersion.of(11) } // Gradle toolchain
