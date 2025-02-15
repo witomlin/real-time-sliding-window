@@ -112,7 +112,7 @@ class OnDemandBucketedWindowTest :
                                     this.onDemandTumblingBuckets(length = Duration.ofMillis(0))
                                 }
                                 .message
-                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODB_LENGTH_INSUFFICIENT)
+                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_LENGTH_INSUFFICIENT)
                         }
                     }
                 }
@@ -124,7 +124,7 @@ class OnDemandBucketedWindowTest :
                                     this.onDemandTumblingBuckets(bucketLength = Duration.ofMillis(0))
                                 }
                                 .message
-                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODB_BUCKET_INSUFFICIENT)
+                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_BUCKET_INSUFFICIENT)
                         }
                     }
                 }
@@ -136,7 +136,7 @@ class OnDemandBucketedWindowTest :
                                     this.onDemandTumblingBuckets(start = Instant.MAX)
                                 }
                                 .message
-                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODB_START_IN_FUTURE)
+                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_START_IN_FUTURE)
                         }
                     }
                 }
@@ -148,7 +148,7 @@ class OnDemandBucketedWindowTest :
                                     this.onDemandTumblingBuckets(start = Instant.MIN)
                                 }
                                 .message
-                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODB_START_TOO_EARLY)
+                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_START_TOO_EARLY)
                         }
                     }
                 }
@@ -160,7 +160,7 @@ class OnDemandBucketedWindowTest :
                                     this.onDemandTumblingBuckets(start = Instant.now())
                                 }
                                 .message
-                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODB_START_LENGTH_IN_FUTURE)
+                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_START_LENGTH_IN_FUTURE)
                         }
                     }
                 }
@@ -175,7 +175,7 @@ class OnDemandBucketedWindowTest :
                                     )
                                 }
                                 .message
-                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODB_LENGTH_LESS_THAN_BUCKET)
+                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_LENGTH_LESS_THAN_BUCKET)
                         }
                     }
                 }
@@ -190,7 +190,7 @@ class OnDemandBucketedWindowTest :
                                     )
                                 }
                                 .message
-                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODB_LENGTH_MULTIPLE)
+                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_LENGTH_MULTIPLE)
                         }
                     }
                 }
@@ -357,7 +357,11 @@ class OnDemandBucketedWindowTest :
                         data[TestWindowBucketData::class]!!.add(
                             BucketData.TimestampedData(now.minus(configLength), TestWindowBucketData("1"))
                         )
+                        data[TestWindowBucketData::class]!!.add(
+                            BucketData.TimestampedData(now.minusNanos(1), TestWindowBucketData("2"))
+                        )
                         data[String::class]!!.add(BucketData.TimestampedData(now.minus(configLength), "1"))
+                        data[String::class]!!.add(BucketData.TimestampedData(now.minusNanos(1), "2"))
 
                         withConstantNow(now) {
                             with(window.onDemandTumblingBuckets()) {
@@ -367,8 +371,8 @@ class OnDemandBucketedWindowTest :
                                 with(this[0]) {
                                     this.start.shouldBe(now.minus(configLength))
                                     this.end.shouldBe(now.minusNanos(1))
-                                    this.dataForClass(TestWindowBucketData::class).size.shouldBe(1)
-                                    this.dataForClass(String::class).size.shouldBe(1)
+                                    this.dataForClass(TestWindowBucketData::class).size.shouldBe(2)
+                                    this.dataForClass(String::class).size.shouldBe(2)
                                 }
                             }
                         }
