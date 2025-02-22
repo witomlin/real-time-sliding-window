@@ -2,6 +2,15 @@
 - Based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.5.0
+22 February 2025
+
+### Changed
+- Behaviour of `OnDemandBucketedWindow.onDemandTumblingBuckets` argument defaults.
+
+### Removed
+- Return values of `GenericSubject`'s `addObserver` and `removeObserver` methods.
+
 ## 1.4.0
 15 February 2025
 

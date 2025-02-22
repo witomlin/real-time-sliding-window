@@ -31,13 +31,13 @@ class OnDemandBucketedWindow(private val config: OnDemandBucketedWindowConfig) :
     internal companion object {
         const val METRICS_METRIC_VIEW_TUMBLING_DURATION_NAME = "window.view.tumbling.duration"
 
-        const val EXCEPTION_MESSAGE_ODTB_LENGTH_INSUFFICIENT = "'length' must be > 0ms"
-        const val EXCEPTION_MESSAGE_ODTB_BUCKET_INSUFFICIENT = "'bucket' must be > 0ms"
         const val EXCEPTION_MESSAGE_ODTB_START_IN_FUTURE = "'start' must not be in the future"
         const val EXCEPTION_MESSAGE_ODTB_START_TOO_EARLY = "'start' must be later than the start of the window"
+        const val EXCEPTION_MESSAGE_ODTB_LENGTH_INSUFFICIENT = "'length' must be > 0ms"
         const val EXCEPTION_MESSAGE_ODTB_START_LENGTH_IN_FUTURE = "'start' + 'length' must not be in the future"
-        const val EXCEPTION_MESSAGE_ODTB_LENGTH_LESS_THAN_BUCKET = "'length' must be >= 'bucket'"
-        const val EXCEPTION_MESSAGE_ODTB_LENGTH_MULTIPLE = "'length' must be an exact multiple of 'bucket'"
+        const val EXCEPTION_MESSAGE_ODTB_BUCKET_LENGTH_INSUFFICIENT = "'bucketLength' must be > 0ms"
+        const val EXCEPTION_MESSAGE_ODTB_LENGTH_LESS_THAN_BUCKET_LENGTH = "'length' must be >= 'bucketLength'"
+        const val EXCEPTION_MESSAGE_ODTB_LENGTH_MULTIPLE = "'length' must be an exact multiple of 'bucketLength'"
 
         fun metricsConfig(dataItemCount: (dataClass: KClass<*>) -> Int) =
             WindowMetricsConfig(
@@ -79,15 +79,15 @@ class OnDemandBucketedWindow(private val config: OnDemandBucketedWindowConfig) :
 
         val now = Instant.now()
         val computedStart = start ?: now.minus(config.length)
-        val computedLength = length ?: config.length
-        val computedBucketLength = bucketLength ?: config.length
+        val computedLength = length ?: Duration.between(computedStart, now)
+        val computedBucketLength = bucketLength ?: computedLength
 
-        require(computedLength > Duration.ofMillis(0)) { EXCEPTION_MESSAGE_ODTB_LENGTH_INSUFFICIENT }
-        require(computedBucketLength > Duration.ofMillis(0)) { EXCEPTION_MESSAGE_ODTB_BUCKET_INSUFFICIENT }
         require(!computedStart.isAfter(now)) { EXCEPTION_MESSAGE_ODTB_START_IN_FUTURE }
         require(!computedStart.isBefore(now.minus(config.length))) { EXCEPTION_MESSAGE_ODTB_START_TOO_EARLY }
+        require(computedLength > Duration.ofMillis(0)) { EXCEPTION_MESSAGE_ODTB_LENGTH_INSUFFICIENT }
         require(!computedStart.plus(computedLength).isAfter(now)) { EXCEPTION_MESSAGE_ODTB_START_LENGTH_IN_FUTURE }
-        require(computedBucketLength <= computedLength) { EXCEPTION_MESSAGE_ODTB_LENGTH_LESS_THAN_BUCKET }
+        require(computedBucketLength > Duration.ofMillis(0)) { EXCEPTION_MESSAGE_ODTB_BUCKET_LENGTH_INSUFFICIENT }
+        require(computedBucketLength <= computedLength) { EXCEPTION_MESSAGE_ODTB_LENGTH_LESS_THAN_BUCKET_LENGTH }
         require(computedLength.toMillis() % computedBucketLength.toMillis() == 0L) {
             EXCEPTION_MESSAGE_ODTB_LENGTH_MULTIPLE
         }

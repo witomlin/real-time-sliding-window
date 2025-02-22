@@ -26,9 +26,13 @@ abstract class GenericSubject<E : GenericSubject.Event, D>(private val taskSched
 
     private val observers = Collections.synchronizedList(mutableListOf<(E, D) -> Unit>())
 
-    fun addObserver(observer: (E, D) -> Unit) = observers.add(observer)
+    fun addObserver(observer: (E, D) -> Unit) {
+        observers.add(observer)
+    }
 
-    fun removeObserver(observer: (E, D) -> Unit) = observers.remove(observer)
+    fun removeObserver(observer: (E, D) -> Unit) {
+        observers.remove(observer)
+    }
 
     fun notifyObservers(event: E, data: D, async: Boolean) {
         synchronized(observers) {

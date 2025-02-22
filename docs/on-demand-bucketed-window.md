@@ -8,6 +8,7 @@
     * [Retrieving Data](#retrieving-data)
       * [Entire Window (Single Bucket)](#entire-window-single-bucket)
       * [Custom](#custom)
+      * [Defaults](#defaults)
   * [Bucket Metadata](#bucket-metadata)
   * [Bucket Data Metadata](#bucket-data-metadata)
   * [Events](#events)
@@ -97,6 +98,15 @@ buckets.forEach { bucket ->
 ```
 
 `bucketMyData` and `bucketMyOtherData` are immutable.
+
+#### Defaults
+The following defaults are used where arguments are not specified:
+
+| Argument       | Default                                    |
+|:---------------|:-------------------------------------------|
+| `start`        | Current time minus length of window.       |
+| `length`       | Duration between `start` and current time. |
+| `bucketLength` | `length`.                                  |
 
 ## Bucket Metadata
 The following properties are made available for each `OnDemandBucketedWindowBucket`:

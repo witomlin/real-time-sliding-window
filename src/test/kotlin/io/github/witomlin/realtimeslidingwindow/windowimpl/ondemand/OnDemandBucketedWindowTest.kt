@@ -104,6 +104,30 @@ class OnDemandBucketedWindowTest :
                 }
             }
 
+            `when`("invoked with 'start' in the future") {
+                then("an exception is thrown") {
+                    with(OnDemandBucketedWindow(TestWindowConfig.onDemand()).apply { start() }) {
+                        shouldThrowExactly<IllegalArgumentException> {
+                                this.onDemandTumblingBuckets(start = Instant.MAX)
+                            }
+                            .message
+                            .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_START_IN_FUTURE)
+                    }
+                }
+            }
+
+            `when`("invoked with 'start' earlier than the start of the window") {
+                then("an exception is thrown") {
+                    with(OnDemandBucketedWindow(TestWindowConfig.onDemand()).apply { start() }) {
+                        shouldThrowExactly<IllegalArgumentException> {
+                                this.onDemandTumblingBuckets(start = Instant.MIN)
+                            }
+                            .message
+                            .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_START_TOO_EARLY)
+                    }
+                }
+            }
+
             given("the window has been started") {
                 `when`("invoked with 'length' = 0ms") {
                     then("an exception is thrown") {
@@ -117,47 +141,11 @@ class OnDemandBucketedWindowTest :
                     }
                 }
 
-                `when`("invoked with 'bucketLength' = 0ms") {
-                    then("an exception is thrown") {
-                        with(OnDemandBucketedWindow(TestWindowConfig.onDemand()).apply { start() }) {
-                            shouldThrowExactly<IllegalArgumentException> {
-                                    this.onDemandTumblingBuckets(bucketLength = Duration.ofMillis(0))
-                                }
-                                .message
-                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_BUCKET_INSUFFICIENT)
-                        }
-                    }
-                }
-
-                `when`("invoked with 'start' in the future") {
-                    then("an exception is thrown") {
-                        with(OnDemandBucketedWindow(TestWindowConfig.onDemand()).apply { start() }) {
-                            shouldThrowExactly<IllegalArgumentException> {
-                                    this.onDemandTumblingBuckets(start = Instant.MAX)
-                                }
-                                .message
-                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_START_IN_FUTURE)
-                        }
-                    }
-                }
-
-                `when`("invoked with 'start' earlier than the start of the window") {
-                    then("an exception is thrown") {
-                        with(OnDemandBucketedWindow(TestWindowConfig.onDemand()).apply { start() }) {
-                            shouldThrowExactly<IllegalArgumentException> {
-                                    this.onDemandTumblingBuckets(start = Instant.MIN)
-                                }
-                                .message
-                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_START_TOO_EARLY)
-                        }
-                    }
-                }
-
                 `when`("invoked with 'start' + 'length' in the future") {
                     then("an exception is thrown") {
                         with(OnDemandBucketedWindow(TestWindowConfig.onDemand()).apply { start() }) {
                             shouldThrowExactly<IllegalArgumentException> {
-                                    this.onDemandTumblingBuckets(start = Instant.now())
+                                    this.onDemandTumblingBuckets(start = Instant.now(), length = Duration.ofSeconds(5))
                                 }
                                 .message
                                 .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_START_LENGTH_IN_FUTURE)
@@ -165,7 +153,19 @@ class OnDemandBucketedWindowTest :
                     }
                 }
 
-                `when`("invoked with 'length' < 'bucket'") {
+                `when`("invoked with 'bucketLength' = 0ms") {
+                    then("an exception is thrown") {
+                        with(OnDemandBucketedWindow(TestWindowConfig.onDemand()).apply { start() }) {
+                            shouldThrowExactly<IllegalArgumentException> {
+                                    this.onDemandTumblingBuckets(bucketLength = Duration.ofMillis(0))
+                                }
+                                .message
+                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_BUCKET_LENGTH_INSUFFICIENT)
+                        }
+                    }
+                }
+
+                `when`("invoked with 'length' < 'bucketLength'") {
                     then("an exception is thrown") {
                         with(OnDemandBucketedWindow(TestWindowConfig.onDemand()).apply { start() }) {
                             shouldThrowExactly<IllegalArgumentException> {
@@ -175,12 +175,12 @@ class OnDemandBucketedWindowTest :
                                     )
                                 }
                                 .message
-                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_LENGTH_LESS_THAN_BUCKET)
+                                .shouldBe(OnDemandBucketedWindow.EXCEPTION_MESSAGE_ODTB_LENGTH_LESS_THAN_BUCKET_LENGTH)
                         }
                     }
                 }
 
-                `when`("invoked with 'length' not an exact multiple of 'bucket'") {
+                `when`("invoked with 'length' not an exact multiple of 'bucketLength'") {
                     then("an exception is thrown") {
                         with(OnDemandBucketedWindow(TestWindowConfig.onDemand()).apply { start() }) {
                             shouldThrowExactly<IllegalArgumentException> {
@@ -333,8 +333,8 @@ class OnDemandBucketedWindowTest :
                     }
                 }
 
-                `when`("invoked with defaults") {
-                    then("the correct non-empty buckets are returned") {
+                `when`("invoked with all defaults") {
+                    then("a correct single bucket is returned") {
                         val configLength = Duration.ofSeconds(3)
                         val window =
                             OnDemandBucketedWindow(
@@ -370,6 +370,54 @@ class OnDemandBucketedWindowTest :
 
                                 with(this[0]) {
                                     this.start.shouldBe(now.minus(configLength))
+                                    this.end.shouldBe(now.minusNanos(1))
+                                    this.dataForClass(TestWindowBucketData::class).size.shouldBe(2)
+                                    this.dataForClass(String::class).size.shouldBe(2)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                `when`("invoked with with only 'start'") {
+                    then("a correct single bucket is returned") {
+                        val configLength = Duration.ofSeconds(3)
+                        val window =
+                            OnDemandBucketedWindow(
+                                    TestWindowConfig.onDemand(
+                                        length = configLength,
+                                        forDataClasses = listOf(TestWindowBucketData::class, String::class),
+                                    )
+                                )
+                                .apply { start() }
+                        val data =
+                            TestReflection.getFieldValue<
+                                Map<KClass<*>, ConcurrentSkipListSet<BucketData.TimestampedData<*>>>
+                            >(
+                                window,
+                                OnDemandBucketedWindow::class,
+                                "data",
+                            )
+
+                        val now = Instant.now()
+                        val start = now.minus(configLength.dividedBy(2))
+                        data[TestWindowBucketData::class]!!.add(
+                            BucketData.TimestampedData(start, TestWindowBucketData("1"))
+                        )
+                        data[TestWindowBucketData::class]!!.add(
+                            BucketData.TimestampedData(now.minusNanos(1), TestWindowBucketData("2"))
+                        )
+                        data[String::class]!!.add(BucketData.TimestampedData(start, "1"))
+                        data[String::class]!!.add(BucketData.TimestampedData(now.minusNanos(1), "2"))
+
+                        withConstantNow(now) {
+                            with(window.onDemandTumblingBuckets(start = start)) {
+                                this.size.shouldBe(1)
+                                Duration.between(this[0].start, this[0].end)
+                                    .shouldBe(Duration.between(start, now).minusNanos(1))
+
+                                with(this[0]) {
+                                    this.start.shouldBe(start)
                                     this.end.shouldBe(now.minusNanos(1))
                                     this.dataForClass(TestWindowBucketData::class).size.shouldBe(2)
                                     this.dataForClass(String::class).size.shouldBe(2)
